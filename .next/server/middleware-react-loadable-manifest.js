@@ -1,0 +1,1 @@
+self.__REACT_LOADABLE_MANIFEST="{\"store\\\\auth.store.ts -> @/store/shift.store\":{\"id\":\"store\\\\auth.store.ts -> @/store/shift.store\",\"files\":[\"static/chunks/_app-pages-browser_src_store_shift_store_ts.js\"]}}"
