@@ -1,5 +1,5 @@
 import client from "./client";
-import type { NationalDashboard } from "@/types";
+import type { NationalDashboard, ExecutiveDashboard } from "@/types";
 
 export const dashboardApi = {
   national: (dateFrom?: string, dateTo?: string, aerodromeId?: string) =>
@@ -17,5 +17,5 @@ export const dashboardApi = {
   kpis: () => client.get("/dashboard/kpis"),
 
   executive: (dateFrom?: string, dateTo?: string) =>
-    client.get("/dashboard/executive", { params: { date_from: dateFrom, date_to: dateTo } }),
+    client.get<ExecutiveDashboard>("/dashboard/executive", { params: { date_from: dateFrom, date_to: dateTo } }),
 };

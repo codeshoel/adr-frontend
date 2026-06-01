@@ -297,6 +297,17 @@ export interface NationalDashboard {
   daily_trend: DailyMovementCount[];
 }
 
+export interface ExecutiveDashboard {
+  period_from: string;
+  period_to: string;
+  headline_stats: MovementSummary;
+  top_aerodromes: AerodromeMovementStats[];
+  top_airlines: { airline_id: string | null; airline_name: string | null; total: number }[];
+  daily_trend: DailyMovementCount[];
+  safety_score: number;
+  compliance_rate: number;
+}
+
 // ==================== REPORTS ====================
 
 export type ReportType =
