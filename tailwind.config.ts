@@ -28,7 +28,7 @@ const config: Config = {
         "safe-green": "#00843D",
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
+        sans: ["var(--font-poppins)", "system-ui", "sans-serif"],
       },
     },
   },

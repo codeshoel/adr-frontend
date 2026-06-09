@@ -27,40 +27,48 @@ interface NavItem {
   href: string;
 }
 
+const INBOX_ITEM: NavItem = { label: "Inbox", icon: Bell, href: "/notifications" };
+
 const NAV_ITEMS: Record<UserRole, NavItem[]> = {
   atc_operator: [
     { label: "Movements", icon: PlaneTakeoff, href: "/operator" },
     { label: "AIS Queue", icon: Radio, href: "/operator/ais" },
     { label: "History", icon: History, href: "/operator/history" },
     { label: "Shift Log", icon: Clock, href: "/operator/shifts" },
+    INBOX_ITEM,
   ],
   supervisor: [
     { label: "Review Queue", icon: ClipboardCheck, href: "/supervisor" },
-    { label: "Movements", icon: PlaneTakeoff, href: "/supervisor/movements" },
+    INBOX_ITEM,
   ],
   nama_management: [
     { label: "Dashboard", icon: BarChart2, href: "/nama" },
-    { label: "Movements", icon: PlaneTakeoff, href: "/nama/movements" },
     { label: "Reports", icon: ClipboardCheck, href: "/reports" },
+    INBOX_ITEM,
   ],
   ncaa_officer: [
     { label: "Safety Feed", icon: ShieldCheck, href: "/ncaa" },
     { label: "Reports", icon: ClipboardCheck, href: "/reports" },
+    INBOX_ITEM,
   ],
   faan_officer: [
     { label: "Billing", icon: DollarSign, href: "/faan" },
     { label: "Reports", icon: ClipboardCheck, href: "/reports" },
+    INBOX_ITEM,
   ],
   airline_user: [
     { label: "My Movements", icon: Plane, href: "/airlines" },
+    INBOX_ITEM,
   ],
   executive: [
     { label: "Overview", icon: TrendingUp, href: "/executive" },
+    INBOX_ITEM,
   ],
   system_admin: [
     { label: "Dashboard", icon: BarChart2, href: "/nama" },
     { label: "Users", icon: Settings, href: "/admin" },
     { label: "Reports", icon: ClipboardCheck, href: "/reports" },
+    INBOX_ITEM,
   ],
 };
 

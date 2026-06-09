@@ -1,7 +1,4 @@
 {
   "/auth/login/page": "app/auth/login/page.js",
-  "/admin/page": "app/admin/page.js",
-  "/operator/page": "app/operator/page.js",
-  "/operator/shifts/page": "app/operator/shifts/page.js",
-  "/operator/ais/page": "app/operator/ais/page.js"
+  "/page": "app/page.js"
 }
