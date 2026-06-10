@@ -357,3 +357,114 @@ export interface PaginationParams {
   page: number;
   page_size: number;
 }
+
+// ==================== FLIGHT STRIPS (live capture) ====================
+
+export type StripFlightType = "departure" | "arrival" | "overflight";
+
+export type StripStatus = "open" | "closed" | "discarded";
+
+export type StripSource = "dop" | "recent" | "registry" | "freeform";
+
+export type OperationalPhase =
+  // Departure
+  | "D1_CLEARANCE_ISSUED"
+  | "D2_OFF_BLOCK"
+  | "D3_TAXI_OUT"
+  | "D4_HOLDING_POINT"
+  | "D5_LINEUP"
+  | "D6_TAKEOFF_CLEARED"
+  | "D7_AIRBORNE"
+  | "D8_HANDOFF_OUT"
+  // Arrival
+  | "A1_HANDOFF_IN"
+  | "A2_ESTABLISHED_FINAL"
+  | "A3_LANDING_CLEARED"
+  | "A4_LANDING"
+  | "A5_RUNWAY_VACATED"
+  | "A6_TAXI_IN"
+  | "A7_ON_BLOCK"
+  // Overflight
+  | "O1_CONTACT_IN"
+  | "O2_WAYPOINT_PASSED"
+  | "O3_CONTACT_OUT";
+
+export interface FlightStrip {
+  id: string;
+  aerodrome_id: string;
+  shift_id: string | null;
+  flight_type: StripFlightType;
+  operational_phase: OperationalPhase;
+  status: StripStatus;
+  created_from: StripSource;
+  callsign: string | null;
+  flight_number: string | null;
+  flight_rule: FlightRule;
+  airline_id: string | null;
+  aircraft_type_id: string | null;
+  registration: string | null;
+  origin_icao: string | null;
+  destination_icao: string | null;
+  route_string: string | null;
+  runway_id: string | null;
+  souls_on_board: number | null;
+  fuel_on_board_kg: number | null;
+  cargo_kg: number | null;
+  movement_date: string | null;
+  phase_timestamps: Record<string, string>;
+  waypoints: { name: string | null; at: string }[];
+  overrides: Record<string, unknown>[];
+  remarks: { phase: string; text: string; by_user: string; at: string }[];
+  is_diverted: boolean;
+  needs_supervisor: boolean;
+  divert_reason: string | null;
+  cancel_reason: string | null;
+  closed_at: string | null;
+  emitted_movement_id: string | null;
+  created_at: string;
+  aerodrome?: AerodromeBasic | null;
+  airline?: AirlineBasic | null;
+  aircraft_type?: AircraftTypeBasic | null;
+}
+
+export interface StripCreate {
+  flight_type: StripFlightType;
+  created_from?: StripSource;
+  dop_entry_id?: string | null;
+  callsign?: string | null;
+  flight_number?: string | null;
+  flight_rule?: FlightRule;
+  airline_id?: string | null;
+  aircraft_type_id?: string | null;
+  registration?: string | null;
+  origin_icao?: string | null;
+  destination_icao?: string | null;
+  route_string?: string | null;
+  runway_id?: string | null;
+  souls_on_board?: number | null;
+  fuel_on_board_kg?: number | null;
+  cargo_kg?: number | null;
+}
+
+export interface StripAdvanceResponse {
+  strip: FlightStrip;
+  emitted_movement: Movement | null;
+}
+
+export interface SuggestItem {
+  source: StripSource;
+  label: string;
+  detail: string | null;
+  dop_entry_id: string | null;
+  callsign: string | null;
+  airline_id: string | null;
+  aircraft_type_id: string | null;
+  registration: string | null;
+  origin_icao: string | null;
+  destination_icao: string | null;
+}
+
+export interface SuggestResponse {
+  query: string;
+  items: SuggestItem[];
+}
