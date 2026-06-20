@@ -5,6 +5,7 @@ import { stripsApi } from "@/lib/api/strips";
 import { AirlineCombobox } from "@/components/shared/AirlineCombobox";
 import { AircraftTypeCombobox } from "@/components/shared/AircraftTypeCombobox";
 import { AerodromeCombobox } from "@/components/shared/AerodromeCombobox";
+import { CallsignCombobox } from "./CallsignCombobox";
 import type {
   Aerodrome,
   AircraftType,
@@ -149,13 +150,14 @@ export function NewStripForm({ open, defaultCallsign, defaultFlightType, onClose
           {/* Identity */}
           <div className="grid grid-cols-2 gap-3">
             <Field label="Callsign *">
-              <input
-                autoFocus
+              <CallsignCombobox
                 value={callsign}
-                onChange={(e) => setCallsign(e.target.value.toUpperCase())}
-                onKeyDown={(e) => e.key === "Enter" && submit()}
-                placeholder="ABV123"
-                className="input font-mono uppercase"
+                onChange={setCallsign}
+                autoFocus
+                onEnter={submit}
+                onPick={(item) => {
+                  if (item.registration) setRegistration(item.registration);
+                }}
               />
             </Field>
             <Field label="Flight number">
