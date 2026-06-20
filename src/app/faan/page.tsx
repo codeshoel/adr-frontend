@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import client from "@/lib/api/client";
 import { AerodromeCombobox } from "@/components/shared/AerodromeCombobox";
 import { MovementDetailModal } from "@/components/movements/MovementDetailModal";
+import { useDialog } from "@/components/ui/DialogProvider";
 import type { Aerodrome } from "@/types";
 
 interface BillingSummary {
@@ -20,6 +21,7 @@ export default function FaanPage() {
   const [movements, setMovements] = useState<unknown[]>([]);
   const [aerodrome, setAerodrome] = useState<Aerodrome | null>(null);
   const [selectedMovementId, setSelectedMovementId] = useState<string | null>(null);
+  const dialog = useDialog();
 
   useEffect(() => {
     const params = aerodrome ? { aerodrome_id: aerodrome.id } : {};
@@ -36,9 +38,12 @@ export default function FaanPage() {
   async function handleExport() {
     try {
       const { data } = await client.post("/faan/export-billing");
-      alert(`Export queued. Report ID: ${data.report_output_id}`);
+      await dialog.alert({
+        title: "Export queued",
+        message: `Report ID: ${data.report_output_id}\nCheck the Reports page for the file once it's ready.`,
+      });
     } catch {
-      alert("Export failed");
+      await dialog.alert({ title: "Export failed", message: "Could not queue the billing export.", tone: "danger" });
     }
   }
 

@@ -7,8 +7,10 @@ import type { StripFlightType } from "@/types";
 import { SearchSelectBar } from "./SearchSelectBar";
 import { NewStripForm } from "./NewStripForm";
 import { StripCard } from "./StripCard";
+import { useDialog } from "@/components/ui/DialogProvider";
 
 export function StripBoard() {
+  const dialog = useDialog();
   const [strips, setStrips] = useState<FlightStrip[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -82,36 +84,66 @@ export function StripBoard() {
       await refetch();
     });
 
-  const onWaypoint = (strip: FlightStrip) =>
-    withBusy(strip.id, async () => {
-      const name = window.prompt("Waypoint name (optional):") ?? undefined;
+  const onWaypoint = async (strip: FlightStrip) => {
+    const name = await dialog.prompt({
+      title: "Log waypoint",
+      message: "Waypoint name (optional)",
+      placeholder: "e.g. KADUNA",
+      confirmText: "Log",
+    });
+    if (name === null) return;
+    await withBusy(strip.id, async () => {
       await stripsApi.advance(strip.id, "O2_WAYPOINT_PASSED", name || undefined);
       await refetch();
     });
+  };
 
-  const onRemark = (strip: FlightStrip) =>
-    withBusy(strip.id, async () => {
-      const text = window.prompt("Remark:");
-      if (!text) return;
+  const onRemark = async (strip: FlightStrip) => {
+    const text = await dialog.prompt({
+      title: "Add remark",
+      placeholder: "Remark…",
+      required: true,
+      confirmText: "Add",
+    });
+    if (!text) return;
+    await withBusy(strip.id, async () => {
       await stripsApi.remark(strip.id, text);
       await refetch();
     });
+  };
 
-  const onDivert = (strip: FlightStrip) =>
-    withBusy(strip.id, async () => {
-      const reason = window.prompt("Divert / go-around reason:");
-      if (!reason) return;
+  const onDivert = async (strip: FlightStrip) => {
+    const reason = await dialog.prompt({
+      title: "Divert / go-around",
+      message: `Divert ${strip.callsign ?? "this strip"}? It will be routed to supervisor review.`,
+      placeholder: "Reason",
+      required: true,
+      tone: "danger",
+      confirmText: "Divert",
+    });
+    if (!reason) return;
+    await withBusy(strip.id, async () => {
       await stripsApi.divert(strip.id, reason);
       await refetch();
     });
+  };
 
-  const onCancel = (strip: FlightStrip) =>
-    withBusy(strip.id, async () => {
-      const reason = window.prompt("Cancel reason:");
-      if (!reason) return;
+  const onCancel = async (strip: FlightStrip) => {
+    const reason = await dialog.prompt({
+      title: "Cancel strip",
+      message: `Cancel ${strip.callsign ?? "this strip"}? This cannot be undone.`,
+      placeholder: "Reason",
+      required: true,
+      tone: "danger",
+      confirmText: "Cancel strip",
+      cancelText: "Keep",
+    });
+    if (!reason) return;
+    await withBusy(strip.id, async () => {
       await stripsApi.cancel(strip.id, reason);
       await refetch();
     });
+  };
 
   const cardProps = { onAdvance, onWaypoint, onRemark, onDivert, onCancel };
 
