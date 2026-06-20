@@ -75,3 +75,54 @@ export function phaseProgress(flightType: StripFlightType, phase: OperationalPha
   const idx = phaseIndex(flightType, phase);
   return `${idx + 1}/${seq.length}`;
 }
+
+// ---------------------------------------------------------------------------
+// Phase-column (kanban) board model
+// ---------------------------------------------------------------------------
+export interface PhaseColumn {
+  key: string;
+  title: string;
+  /** Non-terminal phases shown in this column (terminal phases leave the board). */
+  phases: OperationalPhase[];
+}
+
+export const BOARD_COLUMNS: PhaseColumn[] = [
+  { key: "incoming", title: "Radar / Incoming", phases: ["A1_HANDOFF_IN", "O1_CONTACT_IN"] },
+  {
+    key: "clearance",
+    title: "Initial / Clearance",
+    phases: ["D1_CLEARANCE_ISSUED", "A2_ESTABLISHED_FINAL", "O2_WAYPOINT_PASSED"],
+  },
+  { key: "dep_ground", title: "Dep. Ground", phases: ["D2_OFF_BLOCK", "D3_TAXI_OUT", "D4_HOLDING_POINT"] },
+  {
+    key: "runway",
+    title: "Runway Active",
+    phases: ["D5_LINEUP", "D6_TAKEOFF_CLEARED", "A3_LANDING_CLEARED", "A4_LANDING"],
+  },
+  { key: "final", title: "Airborne / Vacating", phases: ["D7_AIRBORNE", "A5_RUNWAY_VACATED", "A6_TAXI_IN"] },
+];
+
+/** Which board column a phase lives in (-1 if none, e.g. terminal phases). */
+export function columnIndexForPhase(phase: OperationalPhase): number {
+  return BOARD_COLUMNS.findIndex((c) => c.phases.includes(phase));
+}
+
+/**
+ * How many forward phase-advances are needed to move a strip into the target
+ * column. Returns -1 if the target is not reachable (wrong flight type, or it
+ * would be a backward/same move).
+ */
+export function advancesToColumn(
+  flightType: StripFlightType,
+  currentPhase: OperationalPhase,
+  targetColumnKey: string
+): number {
+  const seq = sequenceFor(flightType);
+  const curIdx = seq.findIndex((m) => m.value === currentPhase);
+  const col = BOARD_COLUMNS.find((c) => c.key === targetColumnKey);
+  if (!col || curIdx < 0) return -1;
+  for (let i = curIdx + 1; i < seq.length; i++) {
+    if (col.phases.includes(seq[i].value)) return i - curIdx;
+  }
+  return -1;
+}

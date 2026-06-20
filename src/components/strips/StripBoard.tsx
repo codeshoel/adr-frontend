@@ -1,11 +1,12 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PlaneTakeoff, PlaneLanding, Radio, Wifi, WifiOff } from "lucide-react";
-import type { FlightStrip } from "@/types";
+import { Wifi, WifiOff } from "lucide-react";
+import type { FlightStrip, StripFlightType } from "@/types";
 import { stripsApi, openStripStream } from "@/lib/api/strips";
-import type { StripFlightType } from "@/types";
+import { BOARD_COLUMNS, advancesToColumn } from "@/lib/strips/phases";
 import { SearchSelectBar } from "./SearchSelectBar";
 import { NewStripForm } from "./NewStripForm";
+import { StripEditModal } from "./StripEditModal";
 import { StripCard } from "./StripCard";
 import { useDialog } from "@/components/ui/DialogProvider";
 
@@ -18,6 +19,9 @@ export function StripBoard() {
   const [flightType, setFlightType] = useState<StripFlightType>("departure");
   const [formOpen, setFormOpen] = useState(false);
   const [formCallsign, setFormCallsign] = useState("");
+  const [editStrip, setEditStrip] = useState<FlightStrip | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const draggingRef = useRef<FlightStrip | null>(null);
   const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refetch = useCallback(async () => {
@@ -29,7 +33,6 @@ export function StripBoard() {
     }
   }, []);
 
-  // Debounced refetch driven by SSE events.
   const scheduleRefetch = useCallback(() => {
     if (refetchTimer.current) clearTimeout(refetchTimer.current);
     refetchTimer.current = setTimeout(refetch, 150);
@@ -67,9 +70,7 @@ export function StripBoard() {
     try {
       await fn();
     } catch (e: unknown) {
-      const detail =
-        (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Action failed";
-      flash(detail);
+      flash((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Action failed");
     } finally {
       setBusyId(null);
     }
@@ -85,12 +86,7 @@ export function StripBoard() {
     });
 
   const onWaypoint = async (strip: FlightStrip) => {
-    const name = await dialog.prompt({
-      title: "Log waypoint",
-      message: "Waypoint name (optional)",
-      placeholder: "e.g. KADUNA",
-      confirmText: "Log",
-    });
+    const name = await dialog.prompt({ title: "Log waypoint", message: "Waypoint name (optional)", placeholder: "e.g. KADUNA", confirmText: "Log" });
     if (name === null) return;
     await withBusy(strip.id, async () => {
       await stripsApi.advance(strip.id, "O2_WAYPOINT_PASSED", name || undefined);
@@ -99,12 +95,7 @@ export function StripBoard() {
   };
 
   const onRemark = async (strip: FlightStrip) => {
-    const text = await dialog.prompt({
-      title: "Add remark",
-      placeholder: "Remark…",
-      required: true,
-      confirmText: "Add",
-    });
+    const text = await dialog.prompt({ title: "Add remark", placeholder: "Remark…", required: true, confirmText: "Add" });
     if (!text) return;
     await withBusy(strip.id, async () => {
       await stripsApi.remark(strip.id, text);
@@ -116,10 +107,7 @@ export function StripBoard() {
     const reason = await dialog.prompt({
       title: "Divert / go-around",
       message: `Divert ${strip.callsign ?? "this strip"}? It will be routed to supervisor review.`,
-      placeholder: "Reason",
-      required: true,
-      tone: "danger",
-      confirmText: "Divert",
+      placeholder: "Reason", required: true, tone: "danger", confirmText: "Divert",
     });
     if (!reason) return;
     await withBusy(strip.id, async () => {
@@ -132,11 +120,7 @@ export function StripBoard() {
     const reason = await dialog.prompt({
       title: "Cancel strip",
       message: `Cancel ${strip.callsign ?? "this strip"}? This cannot be undone.`,
-      placeholder: "Reason",
-      required: true,
-      tone: "danger",
-      confirmText: "Cancel strip",
-      cancelText: "Keep",
+      placeholder: "Reason", required: true, tone: "danger", confirmText: "Cancel strip", cancelText: "Keep",
     });
     if (!reason) return;
     await withBusy(strip.id, async () => {
@@ -145,11 +129,38 @@ export function StripBoard() {
     });
   };
 
-  const cardProps = { onAdvance, onWaypoint, onRemark, onDivert, onCancel };
+  // --- Drag and drop: dropping on a column advances the strip into it ---
+  const onDragStart = (strip: FlightStrip) => { draggingRef.current = strip; };
+  const onDragEnd = () => { draggingRef.current = null; setDragOverCol(null); };
 
-  const departures = strips.filter((s) => s.flight_type === "departure");
-  const arrivals = strips.filter((s) => s.flight_type === "arrival");
-  const overflights = strips.filter((s) => s.flight_type === "overflight");
+  const onDropToColumn = async (columnKey: string) => {
+    const strip = draggingRef.current;
+    draggingRef.current = null;
+    setDragOverCol(null);
+    if (!strip) return;
+    const steps = advancesToColumn(strip.flight_type, strip.operational_phase, columnKey);
+    if (steps <= 0) {
+      flash("Can't move there — strips only advance forward through their own phases.");
+      return;
+    }
+    await withBusy(strip.id, async () => {
+      let emitted = null;
+      for (let i = 0; i < steps; i++) {
+        const { data } = await stripsApi.advance(strip.id);
+        if (data.emitted_movement) { emitted = data.emitted_movement; break; }
+      }
+      if (emitted) flash(`Movement emitted: ${emitted.callsign} (${emitted.status})`);
+      await refetch();
+    });
+  };
+
+  const cardProps = { onAdvance, onWaypoint, onEdit: setEditStrip, onRemark, onDivert, onCancel, onDragStart, onDragEnd };
+
+  const counts = {
+    dep: strips.filter((s) => s.flight_type === "departure").length,
+    arr: strips.filter((s) => s.flight_type === "arrival").length,
+    ovr: strips.filter((s) => s.flight_type === "overflight").length,
+  };
 
   return (
     <div className="h-full flex flex-col">
@@ -159,10 +170,7 @@ export function StripBoard() {
           flightType={flightType}
           onFlightType={setFlightType}
           onCreated={onCreated}
-          onNewStrip={(callsign) => {
-            setFormCallsign(callsign);
-            setFormOpen(true);
-          }}
+          onNewStrip={(callsign) => { setFormCallsign(callsign); setFormOpen(true); }}
         />
       </div>
 
@@ -173,45 +181,44 @@ export function StripBoard() {
         onClose={() => setFormOpen(false)}
         onCreated={onCreated}
       />
+      <StripEditModal strip={editStrip} onClose={() => setEditStrip(null)} onSaved={refetch} />
 
-      {/* Lanes */}
-      <div className="flex-1 overflow-hidden grid grid-cols-2 gap-3 p-3">
-        <Lane
-          title="Departures"
-          icon={PlaneTakeoff}
-          accent="text-navy-600"
-          count={departures.length}
-          strips={departures}
-          busyId={busyId}
-          cardProps={cardProps}
-        />
-        <Lane
-          title="Arrivals"
-          icon={PlaneLanding}
-          accent="text-sky-600"
-          count={arrivals.length}
-          strips={arrivals}
-          busyId={busyId}
-          cardProps={cardProps}
-        />
-      </div>
-
-      {/* Overflight drawer */}
-      {overflights.length > 0 && (
-        <div className="border-t border-gray-100 p-3 max-h-48 overflow-y-auto">
-          <div className="flex items-center gap-2 mb-2">
-            <Radio className="w-4 h-4 text-purple-600" />
-            <h3 className="text-xs font-bold uppercase tracking-widest text-purple-600">
-              Overflights · {overflights.length}
-            </h3>
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-            {overflights.map((s) => (
-              <StripCard key={s.id} strip={s} {...cardProps} busy={busyId === s.id} />
-            ))}
-          </div>
+      {/* Phase columns (kanban) — drag a card to a column to the right to advance it */}
+      <div className="flex-1 overflow-x-auto overflow-y-hidden p-3">
+        <div className="flex gap-3 h-full min-w-max">
+          {BOARD_COLUMNS.map((col) => {
+            const colStrips = strips.filter((s) => col.phases.includes(s.operational_phase));
+            const over = dragOverCol === col.key;
+            return (
+              <div
+                key={col.key}
+                onDragOver={(e) => { e.preventDefault(); if (dragOverCol !== col.key) setDragOverCol(col.key); }}
+                onDragLeave={(e) => { if (e.currentTarget === e.target) setDragOverCol(null); }}
+                onDrop={(e) => { e.preventDefault(); onDropToColumn(col.key); }}
+                className={`flex flex-col w-72 shrink-0 rounded-xl border ${
+                  over ? "border-navy-400 bg-navy-50/60" : "border-gray-100 bg-gray-50/60"
+                }`}
+              >
+                <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-navy-600">{col.title}</h3>
+                  <span className="ml-auto text-xs font-bold text-gray-400 tabular-nums">{colStrips.length}</span>
+                </div>
+                <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                  {colStrips.length === 0 ? (
+                    <p className="text-center text-xs text-gray-300 py-10 select-none">
+                      {over ? "Drop to advance here" : "Empty"}
+                    </p>
+                  ) : (
+                    colStrips.map((s) => (
+                      <StripCard key={s.id} strip={s} {...cardProps} busy={busyId === s.id} />
+                    ))
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
-      )}
+      </div>
 
       {/* Footer: live status + counters */}
       <div className="border-t border-gray-100 px-4 py-1.5 flex items-center justify-between text-[11px] text-gray-500">
@@ -223,7 +230,7 @@ export function StripBoard() {
           )}
         </span>
         <span className="tabular-nums">
-          {departures.length} DEP · {arrivals.length} ARR · {overflights.length} OVR · {strips.length} open
+          {counts.dep} DEP · {counts.arr} ARR · {counts.ovr} OVR · {strips.length} open
         </span>
       </div>
 
@@ -232,35 +239,6 @@ export function StripBoard() {
           {toast}
         </div>
       )}
-    </div>
-  );
-}
-
-interface LaneProps {
-  title: string;
-  icon: typeof PlaneTakeoff;
-  accent: string;
-  count: number;
-  strips: FlightStrip[];
-  busyId: string | null;
-  cardProps: Omit<Parameters<typeof StripCard>[0], "strip" | "busy">;
-}
-
-function Lane({ title, icon: Icon, accent, count, strips, busyId, cardProps }: LaneProps) {
-  return (
-    <div className="flex flex-col min-h-0 bg-white rounded-xl border border-gray-100">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
-        <Icon className={`w-4 h-4 ${accent}`} />
-        <h3 className={`text-xs font-bold uppercase tracking-widest ${accent}`}>{title}</h3>
-        <span className="ml-auto text-xs font-bold text-gray-400 tabular-nums">{count}</span>
-      </div>
-      <div className="flex-1 overflow-y-auto p-2 space-y-2">
-        {strips.length === 0 ? (
-          <p className="text-center text-xs text-gray-300 py-8">No active strips</p>
-        ) : (
-          strips.map((s) => <StripCard key={s.id} strip={s} {...cardProps} busy={busyId === s.id} />)
-        )}
-      </div>
     </div>
   );
 }
