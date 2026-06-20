@@ -1,0 +1,49 @@
+name: Deploy frontend (VPS)
+
+# Auto-deploy on every push to main, plus a manual "Run workflow" button.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-frontend
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Update code in the deploy dir
+        run: |
+          set -euo pipefail
+          cd /var/www/html/frontend/adr-frontend
+          git fetch origin main
+          git checkout -f -B main origin/main
+          git log --oneline -1
+
+      - name: Install, build, restart
+        run: |
+          set -euo pipefail
+          cd /var/www/html/frontend/adr-frontend
+          # .env.local (NEXT_PUBLIC_API_URL) is git-ignored and preserved across
+          # checkout, and is baked into the bundle at build time.
+          npm ci
+          npm run build
+          # Restart if running, else start on the assigned port (1908).
+          pm2 restart adr-frontend --update-env \
+            || PORT=1908 pm2 start node_modules/next/dist/bin/next --name adr-frontend -- start -p 1908
+          pm2 save
+
+      - name: Health check
+        run: |
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:1908 || true)
+            if [ "$code" = "200" ] || [ "$code" = "307" ]; then
+              echo "frontend healthy ($code)"; exit 0
+            fi
+            echo "waiting for frontend… ($i, last=$code)"; sleep 3
+          done
+          echo "frontend health check FAILED"
+          pm2 logs adr-frontend --lines 30 --nostream
+          exit 1
