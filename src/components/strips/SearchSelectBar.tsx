@@ -7,8 +7,6 @@ import type { FlightStrip, StripFlightType, SuggestItem } from "@/types";
 const SOURCE_TAG: Record<string, { label: string; className: string }> = {
   dop: { label: "DOP", className: "bg-emerald-100 text-emerald-700" },
   recent: { label: "RECENT", className: "bg-sky-100 text-sky-700" },
-  registry: { label: "REGISTRY", className: "bg-gray-100 text-gray-600" },
-  freeform: { label: "NEW", className: "bg-amber-100 text-amber-700" },
 };
 
 const TYPES: { value: StripFlightType; label: string; icon: typeof PlaneTakeoff }[] = [
@@ -17,16 +15,24 @@ const TYPES: { value: StripFlightType; label: string; icon: typeof PlaneTakeoff 
   { value: "overflight", label: "OVR", icon: Radio },
 ];
 
-export function SearchSelectBar({ onCreated }: { onCreated: (strip: FlightStrip) => void }) {
-  const [flightType, setFlightType] = useState<StripFlightType>("departure");
+interface Props {
+  flightType: StripFlightType;
+  onFlightType: (t: StripFlightType) => void;
+  onCreated: (strip: FlightStrip) => void;
+  onNewStrip: (callsign: string) => void;
+}
+
+export function SearchSelectBar({ flightType, onFlightType, onCreated, onNewStrip }: Props) {
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<SuggestItem[]>([]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Debounced suggest (target ≤150ms feel; backend is the bound).
+  // Only scheduled (DOP) and recent flights are pickable here — registry
+  // airline/aircraft entries belong in the New Strip form's pickers.
+  const suggestions = items.filter((i) => i.source === "dop" || i.source === "recent");
+
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (query.trim().length < 1) {
@@ -47,51 +53,33 @@ export function SearchSelectBar({ onCreated }: { onCreated: (strip: FlightStrip)
     };
   }, [query]);
 
-  async function create(payload: Parameters<typeof stripsApi.create>[0]) {
+  async function selectSuggestion(item: SuggestItem) {
     setBusy(true);
-    setError(null);
     try {
-      const { data } = await stripsApi.create(payload);
+      const { data } = await stripsApi.create({
+        flight_type: flightType,
+        created_from: item.source,
+        dop_entry_id: item.dop_entry_id,
+        callsign: item.callsign,
+        airline_id: item.airline_id,
+        aircraft_type_id: item.aircraft_type_id,
+        registration: item.registration,
+        origin_icao: item.origin_icao,
+        destination_icao: item.destination_icao,
+      });
       onCreated(data);
       setQuery("");
       setItems([]);
       setOpen(false);
-    } catch (e: unknown) {
-      const detail =
-        (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-        "Could not create strip";
-      setError(detail);
     } finally {
       setBusy(false);
     }
   }
 
-  function selectSuggestion(item: SuggestItem) {
-    create({
-      flight_type: flightType,
-      created_from: item.source,
-      dop_entry_id: item.dop_entry_id,
-      callsign: item.callsign ?? (item.source === "registry" ? null : item.label),
-      airline_id: item.airline_id,
-      aircraft_type_id: item.aircraft_type_id,
-      registration: item.registration,
-      origin_icao: item.origin_icao,
-      destination_icao: item.destination_icao,
-    });
-  }
-
-  function createFreeform() {
-    create({
-      flight_type: flightType,
-      created_from: "freeform",
-      callsign: query.trim().toUpperCase() || null,
-    });
-  }
-
   return (
     <div className="relative">
       <div className="flex items-center gap-2">
-        {/* Flight-type selector */}
+        {/* Flight-type selector (shared with the board's default for the form) */}
         <div className="flex rounded-lg border border-gray-200 overflow-hidden">
           {TYPES.map((t) => {
             const Icon = t.icon;
@@ -99,7 +87,7 @@ export function SearchSelectBar({ onCreated }: { onCreated: (strip: FlightStrip)
             return (
               <button
                 key={t.value}
-                onClick={() => setFlightType(t.value)}
+                onClick={() => onFlightType(t.value)}
                 className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold uppercase tracking-wider transition-colors ${
                   active ? "bg-navy-500 text-white" : "bg-white text-gray-500 hover:bg-gray-50"
                 }`}
@@ -111,53 +99,57 @@ export function SearchSelectBar({ onCreated }: { onCreated: (strip: FlightStrip)
           })}
         </div>
 
-        {/* Search input */}
+        {/* Search input — find a scheduled/recent flight to clone */}
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onFocus={() => items.length && setOpen(true)}
+            onFocus={() => suggestions.length && setOpen(true)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && items.length === 0 && query.trim()) createFreeform();
+              if (e.key === "Enter") onNewStrip(query.trim());
               if (e.key === "Escape") setOpen(false);
             }}
-            placeholder="Search callsign, registration, plan… (or type a new callsign and press Enter)"
+            placeholder="Search a scheduled/recent flight to load… or click New Strip to enter one"
             className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-navy-300"
             disabled={busy}
           />
         </div>
 
+        {/* Primary create action — opens the New Strip form */}
         <button
-          onClick={createFreeform}
-          disabled={busy || !query.trim()}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-adr text-navy-900 text-xs font-bold uppercase tracking-wider disabled:opacity-40 hover:brightness-95"
+          onClick={() => onNewStrip(query.trim())}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-amber-adr text-navy-900 text-xs font-bold uppercase tracking-wider hover:brightness-95 whitespace-nowrap"
         >
           <Plus className="w-3.5 h-3.5" />
           New strip
         </button>
       </div>
 
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
-
-      {/* Suggestions dropdown */}
-      {open && items.length > 0 && (
+      {/* Suggestions dropdown (DOP + recent only) */}
+      {open && suggestions.length > 0 && (
         <div className="absolute z-20 mt-1 left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg max-h-72 overflow-y-auto">
-          {items.map((item, i) => {
-            const tag = SOURCE_TAG[item.source] ?? SOURCE_TAG.registry;
+          <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-50">
+            Scheduled / recent flights — click to load
+          </p>
+          {suggestions.map((item, i) => {
+            const tag = SOURCE_TAG[item.source];
             return (
               <button
                 key={`${item.source}-${item.label}-${i}`}
                 onClick={() => selectSuggestion(item)}
-                className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-gray-50 border-b border-gray-50 last:border-0"
+                disabled={busy}
+                className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-gray-50 border-b border-gray-50 last:border-0 disabled:opacity-50"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="font-mono text-sm font-semibold text-navy-700">{item.label}</span>
                   {item.detail && <span className="text-xs text-gray-500 truncate">{item.detail}</span>}
                 </div>
-                <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded ${tag.className}`}>
-                  {tag.label}
-                </span>
+                {tag && (
+                  <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded ${tag.className}`}>
+                    {tag.label}
+                  </span>
+                )}
               </button>
             );
           })}

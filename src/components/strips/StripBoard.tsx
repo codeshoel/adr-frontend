@@ -3,7 +3,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { PlaneTakeoff, PlaneLanding, Radio, Wifi, WifiOff } from "lucide-react";
 import type { FlightStrip } from "@/types";
 import { stripsApi, openStripStream } from "@/lib/api/strips";
+import type { StripFlightType } from "@/types";
 import { SearchSelectBar } from "./SearchSelectBar";
+import { NewStripForm } from "./NewStripForm";
 import { StripCard } from "./StripCard";
 
 export function StripBoard() {
@@ -11,6 +13,9 @@ export function StripBoard() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [live, setLive] = useState(false);
+  const [flightType, setFlightType] = useState<StripFlightType>("departure");
+  const [formOpen, setFormOpen] = useState(false);
+  const [formCallsign, setFormCallsign] = useState("");
   const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refetch = useCallback(async () => {
@@ -118,8 +123,24 @@ export function StripBoard() {
     <div className="h-full flex flex-col">
       {/* Search-select bar */}
       <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-        <SearchSelectBar onCreated={onCreated} />
+        <SearchSelectBar
+          flightType={flightType}
+          onFlightType={setFlightType}
+          onCreated={onCreated}
+          onNewStrip={(callsign) => {
+            setFormCallsign(callsign);
+            setFormOpen(true);
+          }}
+        />
       </div>
+
+      <NewStripForm
+        open={formOpen}
+        defaultCallsign={formCallsign}
+        defaultFlightType={flightType}
+        onClose={() => setFormOpen(false)}
+        onCreated={onCreated}
+      />
 
       {/* Lanes */}
       <div className="flex-1 overflow-hidden grid grid-cols-2 gap-3 p-3">
