@@ -1,9 +1,29 @@
 "use client";
 import { useEffect, useState } from "react";
+import { AlertOctagon, AlertTriangle, AlertCircle, ShieldCheck } from "lucide-react";
 import client from "@/lib/api/client";
-import { SEVERITY_CONFIG } from "@/lib/constants";
 import { AerodromeCombobox } from "@/components/shared/AerodromeCombobox";
 import type { Aerodrome } from "@/types";
+
+type Severity = "critical" | "error" | "warning";
+
+const SEV: Record<Severity, { label: string; bar: string; chip: string; icon: typeof AlertTriangle }> = {
+  critical: { label: "Critical", bar: "bg-red-500", chip: "bg-red-100 text-red-700", icon: AlertOctagon },
+  error: { label: "Error", bar: "bg-rose-500", chip: "bg-rose-100 text-rose-700", icon: AlertTriangle },
+  warning: { label: "Warning", bar: "bg-amber-500", chip: "bg-amber-100 text-amber-700", icon: AlertCircle },
+};
+
+const humanizeCode = (code: string) =>
+  code.toLowerCase().replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+
+interface SafetyFlag {
+  movement_id: string;
+  callsign: string;
+  severity: Severity;
+  flag_code: string;
+  flag_message: string;
+  movement_date: string;
+}
 
 export default function NcaaPage() {
   const [tab, setTab] = useState<"safety" | "compliance" | "audit">("safety");
@@ -43,24 +63,67 @@ export default function NcaaPage() {
         </div>
       </div>
 
-      {tab === "safety" && (
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-gray-700">Live Safety Feed — Flagged Movements</h2>
-          {(feed as Array<{movement_id: string; callsign: string; severity: string; flag_code: string; flag_message: string; movement_date: string}>).map((item, i) => {
-            const cfg = SEVERITY_CONFIG[item.severity as keyof typeof SEVERITY_CONFIG];
-            return (
-              <div key={i} className={`border rounded-lg px-4 py-3 ${cfg?.className}`}>
-                <div className="flex items-center justify-between">
-                  <span className="font-mono font-semibold">{item.callsign}</span>
-                  <span className="text-xs">{item.movement_date}</span>
-                </div>
-                <p className="text-xs mt-1">[{item.flag_code}] {item.flag_message}</p>
+      {tab === "safety" && (() => {
+        const flags = feed as SafetyFlag[];
+        const counts = {
+          critical: flags.filter((f) => f.severity === "critical").length,
+          error: flags.filter((f) => f.severity === "error").length,
+          warning: flags.filter((f) => f.severity === "warning").length,
+        };
+        return (
+          <div className="space-y-4">
+            {/* Summary header */}
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-gray-700">Live Safety Feed — Flagged Movements</h2>
+              <div className="flex items-center gap-2">
+                {(["critical", "error", "warning"] as Severity[]).map((s) => (
+                  <span key={s} className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md ${SEV[s].chip}`}>
+                    {counts[s]} {SEV[s].label}
+                  </span>
+                ))}
               </div>
-            );
-          })}
-          {feed.length === 0 && <p className="text-sm text-gray-400">No flagged movements. All clear.</p>}
-        </div>
-      )}
+            </div>
+
+            {flags.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
+                <p className="mt-3 text-sm font-semibold text-gray-700">All clear</p>
+                <p className="text-xs text-gray-400">No flagged movements right now.</p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {flags.map((item, i) => {
+                  const cfg = SEV[item.severity] ?? SEV.warning;
+                  const Icon = cfg.icon;
+                  return (
+                    <div key={i} className="flex bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+                      <div className={`w-1.5 ${cfg.bar}`} />
+                      <div className="flex-1 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                            <Icon className={`w-4 h-4 ${cfg.chip.split(" ")[1]}`} />
+                            <span className="font-mono text-base font-bold text-navy-700">{item.callsign}</span>
+                            <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${cfg.chip}`}>
+                              {cfg.label}
+                            </span>
+                            <span className="text-[10px] font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                              {humanizeCode(item.flag_code)}
+                            </span>
+                          </div>
+                          <span className="shrink-0 text-xs text-gray-400 tabular-nums">{item.movement_date}</span>
+                        </div>
+                        <p className="mt-1.5 text-sm text-gray-600">{item.flag_message}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {tab === "compliance" && compliance && (
         <div className="space-y-4">
