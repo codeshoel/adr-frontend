@@ -97,9 +97,12 @@ export const BOARD_COLUMNS: PhaseColumn[] = [
   {
     key: "runway",
     title: "Runway Active",
-    phases: ["D5_LINEUP", "D6_TAKEOFF_CLEARED", "A3_LANDING_CLEARED", "A4_LANDING"],
+    phases: ["D5_LINEUP", "D6_TAKEOFF_CLEARED", "D7_AIRBORNE", "A3_LANDING_CLEARED", "A4_LANDING"],
   },
-  { key: "final", title: "Airborne / Vacating", phases: ["D7_AIRBORNE", "A5_RUNWAY_VACATED", "A6_TAXI_IN"] },
+  { key: "arr_ground", title: "Arr. Ground", phases: ["A5_RUNWAY_VACATED", "A6_TAXI_IN"] },
+  // Terminal phases — strips emit a Movement and leave the board, so this column
+  // stays empty in practice; dragging a card here finishes (emits) the strip.
+  { key: "completed", title: "Completed", phases: ["D8_HANDOFF_OUT", "A7_ON_BLOCK", "O3_CONTACT_OUT"] },
 ];
 
 /** Which board column a phase lives in (-1 if none, e.g. terminal phases). */
