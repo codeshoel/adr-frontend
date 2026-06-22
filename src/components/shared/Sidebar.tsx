@@ -84,6 +84,12 @@ export function Sidebar() {
 
   const navItems = NAV_ITEMS[user.role] ?? [];
 
+  // Only the most specific matching item is active, so a parent route (e.g. /nama)
+  // doesn't stay highlighted on a child route (e.g. /nama/tower).
+  const activeHref = [...navItems]
+    .filter((i) => pathname === i.href || pathname.startsWith(i.href + "/"))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+
   async function handleLogout() {
     await logout();
     router.replace("/auth/login");
@@ -113,7 +119,7 @@ export function Sidebar() {
       {/* Nav items */}
       <nav className="flex-1 px-3 py-4 space-y-1">
         {navItems.map((item) => {
-          const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+          const isActive = item.href === activeHref;
           return (
             <Link
               key={item.href}
