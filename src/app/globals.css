@@ -19,4 +19,12 @@
   .scrollbar-thin {
     scrollbar-width: thin;
   }
+  /* Hide the scrollbar but keep wheel/trackpad/touch scrolling. */
+  .no-scrollbar {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome/Safari/Brave */
+  }
 }

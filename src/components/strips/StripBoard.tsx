@@ -170,7 +170,7 @@ export function StripBoard({ readOnly = false }: { readOnly?: boolean }) {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col overflow-hidden">
       {/* Create bar — operators only */}
       {readOnly ? (
         <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
@@ -204,8 +204,10 @@ export function StripBoard({ readOnly = false }: { readOnly?: boolean }) {
       )}
       <StripDetailsModal strip={viewStrip} onClose={() => setViewStrip(null)} />
 
-      {/* Phase columns (kanban) — drag a card to a column to the right to advance it */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden p-3">
+      {/* Phase columns (kanban) — drag a card to a column to the right to advance it.
+          Each column scrolls vertically on its own (hidden scrollbar) so the board
+          never grows taller than the viewport. */}
+      <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden p-3 no-scrollbar">
         <div className="flex gap-3 h-full min-w-max">
           {BOARD_COLUMNS.map((col) => {
             const colStrips = strips.filter((s) => col.phases.includes(s.operational_phase));
@@ -216,15 +218,15 @@ export function StripBoard({ readOnly = false }: { readOnly?: boolean }) {
                 onDragOver={(e) => { e.preventDefault(); if (dragOverCol !== col.key) setDragOverCol(col.key); }}
                 onDragLeave={(e) => { if (e.currentTarget === e.target) setDragOverCol(null); }}
                 onDrop={(e) => { e.preventDefault(); onDropToColumn(col.key); }}
-                className={`flex flex-col w-72 shrink-0 rounded-xl border ${
+                className={`flex flex-col w-72 shrink-0 min-h-0 rounded-xl border ${
                   over ? "border-navy-400 bg-navy-50/60" : "border-gray-100 bg-gray-50/60"
                 }`}
               >
-                <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
+                <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100 shrink-0">
                   <h3 className="text-xs font-bold uppercase tracking-widest text-navy-600">{col.title}</h3>
                   <span className="ml-auto text-xs font-bold text-gray-400 tabular-nums">{colStrips.length}</span>
                 </div>
-                <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-2 no-scrollbar">
                   {colStrips.length === 0 ? (
                     <p className="text-center text-xs text-gray-300 py-10 select-none">
                       {over ? "Drop to advance here" : "Empty"}
