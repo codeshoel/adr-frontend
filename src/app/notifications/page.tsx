@@ -81,7 +81,7 @@ export default function NotificationsPage() {
         <div className="flex items-center gap-3">
           <div className="w-1.5 h-8 bg-amber-adr rounded-sm" />
           <div>
-            <h2 className="text-xl font-bold text-navy-700">Inbox</h2>
+            <h2 className="text-xl font-bold text-navy-700">Notifications</h2>
             <p className="text-xs text-gray-500 uppercase tracking-widest mt-0.5">
               {unreadCount > 0 ? `${unreadCount} unread` : "All read"}
             </p>
@@ -137,7 +137,7 @@ export default function NotificationsPage() {
           <div className="text-center py-16">
             <Inbox size={32} className="text-gray-300 mx-auto mb-2" />
             <p className="text-sm text-gray-400">
-              {filter === "unread" ? "No unread notifications" : "Your inbox is empty"}
+              {filter === "unread" ? "No unread notifications" : "You have no notifications"}
             </p>
           </div>
         )}

@@ -284,7 +284,7 @@ export function NewStripForm({ open, defaultCallsign, defaultFlightType, activeC
           </button>
           <button
             onClick={submit}
-            disabled={busy || !callsign.trim()}
+            disabled={busy || !effectiveCallsign}
             className="px-5 py-2 rounded-lg bg-navy-500 text-white text-sm font-bold uppercase tracking-wider disabled:opacity-40 hover:bg-navy-600"
           >
             {busy ? "Creating…" : "Create strip"}
