@@ -4,6 +4,7 @@ import { reportsApi } from "@/lib/api/reports";
 import { useReportJob } from "@/hooks/useReportJob";
 import { formatDateTime } from "@/lib/utils";
 import { AerodromeCombobox } from "@/components/shared/AerodromeCombobox";
+import { useDialog } from "@/components/ui/DialogProvider";
 import type { Aerodrome, ReportOutput } from "@/types";
 
 const REPORT_TYPES = [
@@ -17,9 +18,15 @@ const REPORT_TYPES = [
 ] as const;
 
 export default function ReportsPage() {
+  const dialog = useDialog();
   const [tab, setTab] = useState<"generate" | "history" | "scheduled">("generate");
   const [history, setHistory] = useState<ReportOutput[]>([]);
   const { output, status, isPolling, error, trigger, reset } = useReportJob();
+
+  const handleDownload = (id: string) =>
+    reportsApi.download(id).catch(() =>
+      dialog.alert({ title: "Download failed", message: "Could not download the report. Please try again.", tone: "danger" })
+    );
 
   const [form, setForm] = useState({
     report_type: "daily_movement" as typeof REPORT_TYPES[number]["value"],
@@ -147,14 +154,12 @@ export default function ReportsPage() {
                     </span>
                   </div>
                   {output.status === "completed" && output.file_path && (
-                    <a
-                      href={reportsApi.downloadUrl(output.id)}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      onClick={() => handleDownload(output.id)}
                       className="mt-3 inline-block bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
                     >
                       Download Report
-                    </a>
+                    </button>
                   )}
                   {output.status === "failed" && (
                     <p className="text-red-500 text-xs mt-2">{output.error_message}</p>
@@ -195,14 +200,12 @@ export default function ReportsPage() {
                   <td className="text-xs text-gray-500">{formatDateTime(r.created_at)}</td>
                   <td>
                     {r.status === "completed" && (
-                      <a
-                        href={reportsApi.downloadUrl(r.id)}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        onClick={() => handleDownload(r.id)}
                         className="text-navy-500 text-xs font-medium hover:underline"
                       >
                         Download
-                      </a>
+                      </button>
                     )}
                   </td>
                 </tr>
