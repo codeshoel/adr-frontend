@@ -14,23 +14,27 @@ jobs:
   deploy:
     runs-on: self-hosted
     steps:
-      - name: Update code in the deploy dir
+      # Auth handled by the runner token — no git credentials needed on the VPS.
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sync code into the deploy dir
         run: |
           set -euo pipefail
-          cd /var/www/html/frontend/adr-frontend
-          git fetch origin main
-          git checkout -f -B main origin/main
-          git log --oneline -1
+          # Preserve the VPS's .env.local and the installed deps/build output.
+          rsync -a --delete \
+            --exclude '.git' \
+            --exclude '.env.local' \
+            --exclude 'node_modules' \
+            --exclude '.next' \
+            ./ /var/www/html/frontend/adr-frontend/
 
       - name: Install, build, restart
         run: |
           set -euo pipefail
           cd /var/www/html/frontend/adr-frontend
-          # .env.local (NEXT_PUBLIC_API_URL) is git-ignored and preserved across
-          # checkout, and is baked into the bundle at build time.
           npm ci
-          npm run build
-          # Restart if running, else start on the assigned port (1908).
+          npm run build   # NEXT_PUBLIC_API_URL from .env.local is baked in here
           pm2 restart adr-frontend --update-env \
             || PORT=1908 pm2 start node_modules/next/dist/bin/next --name adr-frontend -- start -p 1908
           pm2 save
