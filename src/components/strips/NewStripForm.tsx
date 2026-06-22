@@ -6,6 +6,7 @@ import { AirlineCombobox } from "@/components/shared/AirlineCombobox";
 import { AircraftTypeCombobox } from "@/components/shared/AircraftTypeCombobox";
 import { AerodromeCombobox } from "@/components/shared/AerodromeCombobox";
 import { CallsignCombobox } from "./CallsignCombobox";
+import { useDialog } from "@/components/ui/DialogProvider";
 import type {
   Aerodrome,
   AircraftType,
@@ -13,7 +14,11 @@ import type {
   FlightRule,
   FlightStrip,
   StripFlightType,
+  SuggestItem,
 } from "@/types";
+
+// ICAO callsign: 3-letter airline designator + 1-4 digits + optional letter.
+const ICAO_CALLSIGN = /^[A-Z]{3}\d{1,4}[A-Z]?$/;
 
 const TYPES: { value: StripFlightType; label: string; icon: typeof PlaneTakeoff }[] = [
   { value: "departure", label: "Departure", icon: PlaneTakeoff },
@@ -27,11 +32,14 @@ interface Props {
   open: boolean;
   defaultCallsign?: string;
   defaultFlightType?: StripFlightType;
+  /** Callsigns of strips already open on the board (for duplicate detection). */
+  activeCallsigns?: string[];
   onClose: () => void;
   onCreated: (strip: FlightStrip) => void;
 }
 
-export function NewStripForm({ open, defaultCallsign, defaultFlightType, onClose, onCreated }: Props) {
+export function NewStripForm({ open, defaultCallsign, defaultFlightType, activeCallsigns = [], onClose, onCreated }: Props) {
+  const dialog = useDialog();
   const [flightType, setFlightType] = useState<StripFlightType>(defaultFlightType ?? "departure");
   const [callsign, setCallsign] = useState("");
   const [flightNumber, setFlightNumber] = useState("");
@@ -44,8 +52,22 @@ export function NewStripForm({ open, defaultCallsign, defaultFlightType, onClose
   const [souls, setSouls] = useState("");
   const [fuel, setFuel] = useState("");
   const [cargo, setCargo] = useState("");
+  // The flight chosen from the callsign dropdown (null = manual entry).
+  const [selected, setSelected] = useState<SuggestItem | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Fill the rest of the form from a selected scheduled/recent flight.
+  function applySuggestion(item: SuggestItem) {
+    setSelected(item);
+    if (item.callsign) setCallsign(item.callsign.toUpperCase());
+    if (item.flight_number) setFlightNumber(item.flight_number);
+    if (item.airline) setAirline(item.airline as Airline);
+    if (item.aircraft_type) setAircraft(item.aircraft_type as AircraftType);
+    if (item.registration) setRegistration(item.registration);
+    if (item.origin_icao) setOrigin({ icao_code: item.origin_icao } as Aerodrome);
+    if (item.destination_icao) setDestination({ icao_code: item.destination_icao } as Aerodrome);
+  }
 
   // Reset when (re)opened.
   useEffect(() => {
@@ -62,6 +84,7 @@ export function NewStripForm({ open, defaultCallsign, defaultFlightType, onClose
       setSouls("");
       setFuel("");
       setCargo("");
+      setSelected(null);
       setError(null);
     }
   }, [open, defaultCallsign, defaultFlightType]);
@@ -77,17 +100,42 @@ export function NewStripForm({ open, defaultCallsign, defaultFlightType, onClose
   if (!open) return null;
 
   async function submit() {
-    if (!callsign.trim()) {
+    const cs = callsign.trim().toUpperCase();
+    if (!cs) {
       setError("Callsign is required.");
       return;
     }
+
+    // Duplicate already on the board?
+    if (activeCallsigns.some((c) => c.toUpperCase() === cs)) {
+      const ok = await dialog.confirm({
+        title: "Already on the board",
+        message: `A strip for ${cs} is already active. Create another?`,
+        tone: "danger",
+        confirmText: "Create anyway",
+      });
+      if (!ok) return;
+    }
+
+    // Manual (unselected) callsign that isn't ICAO-shaped — warn, don't block.
+    if (!selected && !ICAO_CALLSIGN.test(cs)) {
+      const ok = await dialog.confirm({
+        title: "Callsign format",
+        message: `"${cs}" doesn't match the ICAO format (e.g. ABV1234). Continue anyway?`,
+        tone: "danger",
+        confirmText: "Create anyway",
+      });
+      if (!ok) return;
+    }
+
     setBusy(true);
     setError(null);
     try {
       const { data } = await stripsApi.create({
         flight_type: flightType,
-        created_from: "freeform",
-        callsign: callsign.trim().toUpperCase(),
+        created_from: selected?.source ?? "freeform",
+        dop_entry_id: selected?.dop_entry_id ?? null,
+        callsign: cs,
         flight_number: flightNumber.trim() || null,
         flight_rule: flightRule,
         airline_id: airline?.id ?? null,
@@ -152,12 +200,10 @@ export function NewStripForm({ open, defaultCallsign, defaultFlightType, onClose
             <Field label="Callsign *">
               <CallsignCombobox
                 value={callsign}
-                onChange={setCallsign}
+                onChange={(v) => { setCallsign(v); setSelected(null); }}
                 autoFocus
                 onEnter={submit}
-                onPick={(item) => {
-                  if (item.registration) setRegistration(item.registration);
-                }}
+                onPick={applySuggestion}
               />
             </Field>
             <Field label="Flight number">
@@ -169,6 +215,29 @@ export function NewStripForm({ open, defaultCallsign, defaultFlightType, onClose
               />
             </Field>
           </div>
+
+          {/* Preview of the selected scheduled/recent flight */}
+          {selected && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                  {selected.source === "dop" ? "Scheduled (DOP)" : "Recent flight"}
+                </span>
+                <span className="font-mono text-sm font-bold text-navy-700">{selected.callsign}</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs text-gray-600">
+                {selected.airline?.name && <span><b>Airline:</b> {selected.airline.name}</span>}
+                {selected.aircraft_type?.icao_designator && <span><b>Aircraft:</b> {selected.aircraft_type.icao_designator}</span>}
+                {selected.registration && <span><b>Reg:</b> {selected.registration}</span>}
+                {(selected.origin_icao || selected.destination_icao) && (
+                  <span className="font-mono"><b>Route:</b> {selected.origin_icao ?? "?"}→{selected.destination_icao ?? "?"}</span>
+                )}
+                {selected.scheduled_at && (
+                  <span><b>Sched:</b> {new Date(selected.scheduled_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}Z</span>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Airline">

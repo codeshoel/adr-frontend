@@ -457,11 +457,15 @@ export interface SuggestItem {
   detail: string | null;
   dop_entry_id: string | null;
   callsign: string | null;
+  flight_number: string | null;
   airline_id: string | null;
   aircraft_type_id: string | null;
   registration: string | null;
   origin_icao: string | null;
   destination_icao: string | null;
+  scheduled_at: string | null;
+  airline: AirlineBasic | null;
+  aircraft_type: AircraftTypeBasic | null;
 }
 
 export interface SuggestResponse {

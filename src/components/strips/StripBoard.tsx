@@ -196,6 +196,7 @@ export function StripBoard({ readOnly = false }: { readOnly?: boolean }) {
             open={formOpen}
             defaultCallsign={formCallsign}
             defaultFlightType={flightType}
+            activeCallsigns={strips.filter((s) => s.status === "open" && s.callsign).map((s) => s.callsign as string)}
             onClose={() => setFormOpen(false)}
             onCreated={onCreated}
           />
