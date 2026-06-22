@@ -70,24 +70,24 @@ export default function ReportsPage() {
       </div>
 
       {tab === "generate" && (
-        <div className="max-w-lg">
-          <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
+        <div className="space-y-4">
+          <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-5">
             <h3 className="text-sm font-semibold text-gray-700">Generate Report</h3>
 
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Report Type</label>
-              <select
-                value={form.report_type}
-                onChange={(e) => setForm({ ...form, report_type: e.target.value as typeof form.report_type })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-navy-500"
-              >
-                {REPORT_TYPES.map((r) => (
-                  <option key={r.value} value={r.value}>{r.label}</option>
-                ))}
-              </select>
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="lg:col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Report Type</label>
+                <select
+                  value={form.report_type}
+                  onChange={(e) => setForm({ ...form, report_type: e.target.value as typeof form.report_type })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-navy-500"
+                >
+                  {REPORT_TYPES.map((r) => (
+                    <option key={r.value} value={r.value}>{r.label}</option>
+                  ))}
+                </select>
+              </div>
 
-            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">From</label>
                 <input
@@ -106,63 +106,65 @@ export default function ReportsPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-navy-500"
                 />
               </div>
-            </div>
 
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Aerodrome <span className="text-gray-400 font-normal">(optional — leave empty for national)</span>
-              </label>
-              <AerodromeCombobox value={aerodrome} onChange={setAerodrome} placeholder="All aerodromes (national)" />
-            </div>
+              <div className="sm:col-span-2 lg:col-span-3">
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Aerodrome <span className="text-gray-400 font-normal">(optional — leave empty for national)</span>
+                </label>
+                <AerodromeCombobox value={aerodrome} onChange={setAerodrome} placeholder="All aerodromes (national)" />
+              </div>
 
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Format</label>
-              <div className="flex gap-2">
-                {(["excel", "pdf", "csv"] as const).map((f) => (
-                  <button
-                    key={f}
-                    type="button"
-                    onClick={() => setForm({ ...form, format: f })}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${form.format === f ? "bg-navy-500 text-white border-navy-500" : "bg-white text-gray-600 border-gray-200"}`}
-                  >
-                    {f.toUpperCase()}
-                  </button>
-                ))}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Format</label>
+                <div className="flex gap-2">
+                  {(["excel", "pdf", "csv"] as const).map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => setForm({ ...form, format: f })}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${form.format === f ? "bg-navy-500 text-white border-navy-500" : "bg-white text-gray-600 border-gray-200"}`}
+                    >
+                      {f.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={isPolling}
-              className="w-full bg-navy-500 hover:bg-navy-600 disabled:bg-navy-300 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors"
-            >
-              {isPolling ? "Generating…" : "Generate Report"}
-            </button>
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={isPolling}
+                className="bg-navy-500 hover:bg-navy-600 disabled:bg-navy-300 text-white font-semibold py-2.5 px-8 rounded-lg text-sm transition-colors"
+              >
+                {isPolling ? "Generating…" : "Generate Report"}
+              </button>
+            </div>
           </form>
 
           {/* Status feedback */}
           {(output || error) && (
-            <div className="mt-4 bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
               {error && <p className="text-red-600 text-sm">{error}</p>}
               {output && (
-                <div>
-                  <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-3">
                     <span className="text-sm font-medium text-gray-700">Report Status</span>
                     <span className={`text-sm font-semibold ${statusColors[output.status]}`}>
                       {output.status.charAt(0).toUpperCase() + output.status.slice(1)}
                       {isPolling && " …"}
                     </span>
+                    {output.status === "failed" && output.error_message && (
+                      <span className="text-red-500 text-xs">{output.error_message}</span>
+                    )}
                   </div>
                   {output.status === "completed" && output.file_path && (
                     <button
                       onClick={() => handleDownload(output.id)}
-                      className="mt-3 inline-block bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
+                      className="bg-green-600 hover:bg-green-700 text-white font-semibold px-5 py-2 rounded-lg text-sm transition-colors"
                     >
                       Download Report
                     </button>
-                  )}
-                  {output.status === "failed" && (
-                    <p className="text-red-500 text-xs mt-2">{output.error_message}</p>
                   )}
                 </div>
               )}
