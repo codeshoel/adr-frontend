@@ -1,7 +1,7 @@
 "use client";
-import { ChevronRight, Settings2, MessageSquarePlus, CornerDownRight, X, MapPin } from "lucide-react";
+import { ChevronRight, Settings2, MessageSquarePlus, CornerDownRight, X, MapPin, CheckCircle2 } from "lucide-react";
 import type { FlightStrip } from "@/types";
-import { isTerminal, nextPhase } from "@/lib/strips/phases";
+import { isTerminal, nextPhase, phaseMeta } from "@/lib/strips/phases";
 
 const TYPE_BADGE: Record<string, string> = {
   departure: "bg-navy-100 text-navy-700",
@@ -34,19 +34,21 @@ export function StripCard({
   const next = nextPhase(strip.flight_type, strip.operational_phase);
   const terminal = isTerminal(strip.flight_type, strip.operational_phase);
   const isWaypointPhase = strip.operational_phase === "O2_WAYPOINT_PASSED";
+  const isClosed = strip.status !== "open"; // completed strips are read-only on the board
 
   return (
     <div
-      draggable={!busy}
+      draggable={!busy && !isClosed}
       onDragStart={(e) => {
+        if (isClosed) return;
         e.dataTransfer.effectAllowed = "move";
         e.dataTransfer.setData("text/plain", strip.id);
         onDragStart(strip);
       }}
       onDragEnd={onDragEnd}
-      className={`bg-white border border-gray-100 border-l-4 ${TYPE_ACCENT[strip.flight_type]} rounded-lg shadow-sm p-3 cursor-grab active:cursor-grabbing ${
-        strip.needs_supervisor ? "ring-1 ring-amber-400" : ""
-      } ${busy ? "opacity-60" : ""}`}
+      className={`bg-white border border-gray-100 border-l-4 ${TYPE_ACCENT[strip.flight_type]} rounded-lg shadow-sm p-3 ${
+        isClosed ? "opacity-80" : "cursor-grab active:cursor-grabbing"
+      } ${strip.needs_supervisor ? "ring-1 ring-amber-400" : ""} ${busy ? "opacity-60" : ""}`}
     >
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -73,16 +75,26 @@ export function StripCard({
         <p className="mt-1 text-[11px] font-semibold text-amber-700">DIVERTED — supervisor review</p>
       )}
 
-      {/* Next phase banner */}
-      {!terminal && next && (
-        <div className="mt-2 flex items-center justify-between bg-gray-50 rounded-md px-2.5 py-1.5">
-          <span className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">Next phase</span>
-          <span className="text-xs font-bold text-navy-700">{next.label}</span>
+      {/* Completed strips are read-only — show a completed footer, no actions */}
+      {isClosed ? (
+        <div className="mt-2.5 flex items-center justify-between bg-emerald-50 rounded-md px-2.5 py-1.5">
+          <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-700">
+            <CheckCircle2 className="w-4 h-4" /> Completed
+          </span>
+          <span className="text-[10px] font-mono text-emerald-600">{phaseMeta(strip.operational_phase)?.label}</span>
         </div>
-      )}
+      ) : (
+        <>
+          {/* Next phase banner */}
+          {!terminal && next && (
+            <div className="mt-2 flex items-center justify-between bg-gray-50 rounded-md px-2.5 py-1.5">
+              <span className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">Next phase</span>
+              <span className="text-xs font-bold text-navy-700">{next.label}</span>
+            </div>
+          )}
 
-      {/* Actions */}
-      <div className="mt-2.5 flex items-center gap-1.5">
+          {/* Actions */}
+          <div className="mt-2.5 flex items-center gap-1.5">
         <button
           onClick={() => onEdit(strip)}
           disabled={busy}
@@ -119,9 +131,11 @@ export function StripCard({
         </button>
         <button onClick={() => onCancel(strip)} disabled={busy} title="Cancel strip"
           className="p-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-40">
-          <X className="w-3.5 h-3.5" />
-        </button>
-      </div>
+            <X className="w-3.5 h-3.5" />
+          </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

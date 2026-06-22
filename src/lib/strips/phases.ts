@@ -6,43 +6,53 @@ export interface PhaseMeta {
   label: string; // human-readable
 }
 
+// Metadata for every operational phase.
+const META_BY_VALUE: Record<OperationalPhase, PhaseMeta> = {
+  D1_CLEARANCE_ISSUED: { value: "D1_CLEARANCE_ISSUED", code: "D1", label: "Clearance Issued" },
+  D2_OFF_BLOCK: { value: "D2_OFF_BLOCK", code: "D2", label: "Off Block" },
+  D3_TAXI_OUT: { value: "D3_TAXI_OUT", code: "D3", label: "Taxi Out" },
+  D4_HOLDING_POINT: { value: "D4_HOLDING_POINT", code: "D4", label: "Holding Point" },
+  D5_LINEUP: { value: "D5_LINEUP", code: "D5", label: "Line Up" },
+  D6_TAKEOFF_CLEARED: { value: "D6_TAKEOFF_CLEARED", code: "D6", label: "Take-off Cleared" },
+  D7_AIRBORNE: { value: "D7_AIRBORNE", code: "D7", label: "Airborne" },
+  D8_HANDOFF_OUT: { value: "D8_HANDOFF_OUT", code: "D8", label: "Handoff Out" },
+  A1_HANDOFF_IN: { value: "A1_HANDOFF_IN", code: "A1", label: "Handoff In" },
+  A2_ESTABLISHED_FINAL: { value: "A2_ESTABLISHED_FINAL", code: "A2", label: "Established Final" },
+  A3_LANDING_CLEARED: { value: "A3_LANDING_CLEARED", code: "A3", label: "Landing Cleared" },
+  A4_LANDING: { value: "A4_LANDING", code: "A4", label: "Landing" },
+  A5_RUNWAY_VACATED: { value: "A5_RUNWAY_VACATED", code: "A5", label: "Runway Vacated" },
+  A6_TAXI_IN: { value: "A6_TAXI_IN", code: "A6", label: "Taxi In" },
+  A7_ON_BLOCK: { value: "A7_ON_BLOCK", code: "A7", label: "On Block" },
+  O1_CONTACT_IN: { value: "O1_CONTACT_IN", code: "O1", label: "Contact In" },
+  O2_WAYPOINT_PASSED: { value: "O2_WAYPOINT_PASSED", code: "O2", label: "Waypoint Passed" },
+  O3_CONTACT_OUT: { value: "O3_CONTACT_OUT", code: "O3", label: "Contact Out" },
+};
+
+const seq = (...vals: OperationalPhase[]): PhaseMeta[] => vals.map((v) => META_BY_VALUE[v]);
+
 // Forward-only sequences — must mirror app/services/strip_state_machine.py.
-export const DEPARTURE_PHASES: PhaseMeta[] = [
-  { value: "D1_CLEARANCE_ISSUED", code: "D1", label: "Clearance Issued" },
-  { value: "D2_OFF_BLOCK", code: "D2", label: "Off Block" },
-  { value: "D3_TAXI_OUT", code: "D3", label: "Taxi Out" },
-  { value: "D4_HOLDING_POINT", code: "D4", label: "Holding Point" },
-  { value: "D5_LINEUP", code: "D5", label: "Line Up" },
-  { value: "D6_TAKEOFF_CLEARED", code: "D6", label: "Take-off Cleared" },
-  { value: "D7_AIRBORNE", code: "D7", label: "Airborne" },
-  { value: "D8_HANDOFF_OUT", code: "D8", label: "Handoff Out" },
-];
+// A departure runs the FULL flight lifecycle: it departs, goes airborne, then
+// lands and taxis in at its destination, finishing "on block" (Completed).
+export const DEPARTURE_PHASES: PhaseMeta[] = seq(
+  "D1_CLEARANCE_ISSUED", "D2_OFF_BLOCK", "D3_TAXI_OUT", "D4_HOLDING_POINT",
+  "D5_LINEUP", "D6_TAKEOFF_CLEARED", "D7_AIRBORNE",
+  "A3_LANDING_CLEARED", "A4_LANDING", "A5_RUNWAY_VACATED", "A6_TAXI_IN", "A7_ON_BLOCK",
+);
 
-export const ARRIVAL_PHASES: PhaseMeta[] = [
-  { value: "A1_HANDOFF_IN", code: "A1", label: "Handoff In" },
-  { value: "A2_ESTABLISHED_FINAL", code: "A2", label: "Established Final" },
-  { value: "A3_LANDING_CLEARED", code: "A3", label: "Landing Cleared" },
-  { value: "A4_LANDING", code: "A4", label: "Landing" },
-  { value: "A5_RUNWAY_VACATED", code: "A5", label: "Runway Vacated" },
-  { value: "A6_TAXI_IN", code: "A6", label: "Taxi In" },
-  { value: "A7_ON_BLOCK", code: "A7", label: "On Block" },
-];
+export const ARRIVAL_PHASES: PhaseMeta[] = seq(
+  "A1_HANDOFF_IN", "A2_ESTABLISHED_FINAL", "A3_LANDING_CLEARED", "A4_LANDING",
+  "A5_RUNWAY_VACATED", "A6_TAXI_IN", "A7_ON_BLOCK",
+);
 
-export const OVERFLIGHT_PHASES: PhaseMeta[] = [
-  { value: "O1_CONTACT_IN", code: "O1", label: "Contact In" },
-  { value: "O2_WAYPOINT_PASSED", code: "O2", label: "Waypoint Passed" },
-  { value: "O3_CONTACT_OUT", code: "O3", label: "Contact Out" },
-];
+export const OVERFLIGHT_PHASES: PhaseMeta[] = seq(
+  "O1_CONTACT_IN", "O2_WAYPOINT_PASSED", "O3_CONTACT_OUT",
+);
 
 export const SEQUENCES: Record<StripFlightType, PhaseMeta[]> = {
   departure: DEPARTURE_PHASES,
   arrival: ARRIVAL_PHASES,
   overflight: OVERFLIGHT_PHASES,
 };
-
-const META_BY_VALUE: Record<string, PhaseMeta> = Object.fromEntries(
-  [...DEPARTURE_PHASES, ...ARRIVAL_PHASES, ...OVERFLIGHT_PHASES].map((m) => [m.value, m])
-);
 
 export function phaseMeta(phase: OperationalPhase): PhaseMeta {
   return META_BY_VALUE[phase];
