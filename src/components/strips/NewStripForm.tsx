@@ -5,7 +5,6 @@ import { stripsApi } from "@/lib/api/strips";
 import { AirlineCombobox } from "@/components/shared/AirlineCombobox";
 import { AircraftTypeCombobox } from "@/components/shared/AircraftTypeCombobox";
 import { AerodromeCombobox } from "@/components/shared/AerodromeCombobox";
-import { CallsignCombobox } from "./CallsignCombobox";
 import { useDialog } from "@/components/ui/DialogProvider";
 import type {
   Aerodrome,
@@ -14,7 +13,6 @@ import type {
   FlightRule,
   FlightStrip,
   StripFlightType,
-  SuggestItem,
 } from "@/types";
 
 // ICAO callsign: 3-letter airline designator + 1-4 digits + optional letter.
@@ -52,22 +50,14 @@ export function NewStripForm({ open, defaultCallsign, defaultFlightType, activeC
   const [souls, setSouls] = useState("");
   const [fuel, setFuel] = useState("");
   const [cargo, setCargo] = useState("");
-  // The flight chosen from the callsign dropdown (null = manual entry).
-  const [selected, setSelected] = useState<SuggestItem | null>(null);
+  // Custom-callsign mode for unscheduled flights (military/charter/ferry).
+  const [manual, setManual] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fill the rest of the form from a selected scheduled/recent flight.
-  function applySuggestion(item: SuggestItem) {
-    setSelected(item);
-    if (item.callsign) setCallsign(item.callsign.toUpperCase());
-    if (item.flight_number) setFlightNumber(item.flight_number);
-    if (item.airline) setAirline(item.airline as Airline);
-    if (item.aircraft_type) setAircraft(item.aircraft_type as AircraftType);
-    if (item.registration) setRegistration(item.registration);
-    if (item.origin_icao) setOrigin({ icao_code: item.origin_icao } as Aerodrome);
-    if (item.destination_icao) setDestination({ icao_code: item.destination_icao } as Aerodrome);
-  }
+  // Default: callsign = airline ICAO designator + flight number (always valid).
+  const composedCallsign = `${airline?.icao_code ?? ""}${flightNumber.trim()}`.toUpperCase();
+  const effectiveCallsign = (manual ? callsign : composedCallsign).trim().toUpperCase();
 
   // Reset when (re)opened.
   useEffect(() => {
@@ -84,7 +74,8 @@ export function NewStripForm({ open, defaultCallsign, defaultFlightType, activeC
       setSouls("");
       setFuel("");
       setCargo("");
-      setSelected(null);
+      // If the operator typed a callsign in the search bar, start in custom mode.
+      setManual(!!defaultCallsign);
       setError(null);
     }
   }, [open, defaultCallsign, defaultFlightType]);
@@ -100,9 +91,9 @@ export function NewStripForm({ open, defaultCallsign, defaultFlightType, activeC
   if (!open) return null;
 
   async function submit() {
-    const cs = callsign.trim().toUpperCase();
+    const cs = effectiveCallsign;
     if (!cs) {
-      setError("Callsign is required.");
+      setError(manual ? "Callsign is required." : "Select an airline and enter a flight number.");
       return;
     }
 
@@ -117,8 +108,8 @@ export function NewStripForm({ open, defaultCallsign, defaultFlightType, activeC
       if (!ok) return;
     }
 
-    // Manual (unselected) callsign that isn't ICAO-shaped — warn, don't block.
-    if (!selected && !ICAO_CALLSIGN.test(cs)) {
+    // Only a custom (manual) callsign can be malformed — warn, don't block.
+    if (manual && !ICAO_CALLSIGN.test(cs)) {
       const ok = await dialog.confirm({
         title: "Callsign format",
         message: `"${cs}" doesn't match the ICAO format (e.g. ABV1234). Continue anyway?`,
@@ -133,8 +124,7 @@ export function NewStripForm({ open, defaultCallsign, defaultFlightType, activeC
     try {
       const { data } = await stripsApi.create({
         flight_type: flightType,
-        created_from: selected?.source ?? "freeform",
-        dop_entry_id: selected?.dop_entry_id ?? null,
+        created_from: "freeform",
         callsign: cs,
         flight_number: flightNumber.trim() || null,
         flight_rule: flightRule,
@@ -195,53 +185,45 @@ export function NewStripForm({ open, defaultCallsign, defaultFlightType, activeC
             })}
           </div>
 
-          {/* Identity */}
+          {/* Identity — callsign is built from Airline + flight number so it is
+              always a valid ICAO callsign; "custom" allows unscheduled flights. */}
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Callsign *">
-              <CallsignCombobox
-                value={callsign}
-                onChange={(v) => { setCallsign(v); setSelected(null); }}
-                autoFocus
-                onEnter={submit}
-                onPick={applySuggestion}
-              />
+            <Field label="Airline *">
+              <AirlineCombobox value={airline} onChange={setAirline} />
             </Field>
-            <Field label="Flight number">
+            <Field label="Flight number *">
               <input
                 value={flightNumber}
-                onChange={(e) => setFlightNumber(e.target.value)}
-                placeholder="123"
+                onChange={(e) => setFlightNumber(e.target.value.replace(/[^0-9A-Za-z]/g, ""))}
+                placeholder="231"
                 className="input font-mono"
               />
             </Field>
           </div>
 
-          {/* Preview of the selected scheduled/recent flight */}
-          {selected && (
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3">
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                  {selected.source === "dop" ? "Scheduled (DOP)" : "Recent flight"}
-                </span>
-                <span className="font-mono text-sm font-bold text-navy-700">{selected.callsign}</span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs text-gray-600">
-                {selected.airline?.name && <span><b>Airline:</b> {selected.airline.name}</span>}
-                {selected.aircraft_type?.icao_designator && <span><b>Aircraft:</b> {selected.aircraft_type.icao_designator}</span>}
-                {selected.registration && <span><b>Reg:</b> {selected.registration}</span>}
-                {(selected.origin_icao || selected.destination_icao) && (
-                  <span className="font-mono"><b>Route:</b> {selected.origin_icao ?? "?"}→{selected.destination_icao ?? "?"}</span>
-                )}
-                {selected.scheduled_at && (
-                  <span><b>Sched:</b> {new Date(selected.scheduled_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}Z</span>
-                )}
-              </div>
-            </div>
-          )}
-
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Airline">
-              <AirlineCombobox value={airline} onChange={setAirline} />
+            <Field label="Callsign">
+              {manual ? (
+                <input
+                  autoFocus
+                  value={callsign}
+                  onChange={(e) => setCallsign(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => e.key === "Enter" && submit()}
+                  placeholder="e.g. NMG01 (military/charter)"
+                  className="input font-mono uppercase"
+                />
+              ) : (
+                <div className="input font-mono uppercase bg-gray-50 text-navy-700 flex items-center min-h-[38px]">
+                  {effectiveCallsign || <span className="text-gray-400 normal-case">Pick airline + flight no.</span>}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setManual((m) => !m)}
+                className="mt-1 text-[11px] text-navy-500 hover:underline"
+              >
+                {manual ? "Use airline + flight number" : "Enter a custom callsign (unscheduled flight)"}
+              </button>
             </Field>
             <Field label="Flight rule">
               <select value={flightRule} onChange={(e) => setFlightRule(e.target.value as FlightRule)} className="input">
