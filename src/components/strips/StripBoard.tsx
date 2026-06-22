@@ -1,16 +1,17 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Wifi, WifiOff } from "lucide-react";
+import { Wifi, WifiOff, Eye } from "lucide-react";
 import type { FlightStrip, StripFlightType } from "@/types";
 import { stripsApi, openStripStream } from "@/lib/api/strips";
 import { BOARD_COLUMNS, advancesToColumn } from "@/lib/strips/phases";
 import { SearchSelectBar } from "./SearchSelectBar";
 import { NewStripForm } from "./NewStripForm";
 import { StripEditModal } from "./StripEditModal";
+import { StripDetailsModal } from "./StripDetailsModal";
 import { StripCard } from "./StripCard";
 import { useDialog } from "@/components/ui/DialogProvider";
 
-export function StripBoard() {
+export function StripBoard({ readOnly = false }: { readOnly?: boolean }) {
   const dialog = useDialog();
   const [strips, setStrips] = useState<FlightStrip[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -20,6 +21,7 @@ export function StripBoard() {
   const [formOpen, setFormOpen] = useState(false);
   const [formCallsign, setFormCallsign] = useState("");
   const [editStrip, setEditStrip] = useState<FlightStrip | null>(null);
+  const [viewStrip, setViewStrip] = useState<FlightStrip | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const draggingRef = useRef<FlightStrip | null>(null);
   const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -134,6 +136,7 @@ export function StripBoard() {
   const onDragEnd = () => { draggingRef.current = null; setDragOverCol(null); };
 
   const onDropToColumn = async (columnKey: string) => {
+    if (readOnly) return;
     const strip = draggingRef.current;
     draggingRef.current = null;
     setDragOverCol(null);
@@ -154,7 +157,11 @@ export function StripBoard() {
     });
   };
 
-  const cardProps = { onAdvance, onWaypoint, onEdit: setEditStrip, onRemark, onDivert, onCancel, onDragStart, onDragEnd };
+  const cardProps = {
+    readOnly,
+    onAdvance, onWaypoint, onEdit: setEditStrip, onView: setViewStrip,
+    onRemark, onDivert, onCancel, onDragStart, onDragEnd,
+  };
 
   const counts = {
     dep: strips.filter((s) => s.flight_type === "departure").length,
@@ -164,24 +171,38 @@ export function StripBoard() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Search-select bar */}
-      <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-        <SearchSelectBar
-          flightType={flightType}
-          onFlightType={setFlightType}
-          onCreated={onCreated}
-          onNewStrip={(callsign) => { setFormCallsign(callsign); setFormOpen(true); }}
-        />
-      </div>
+      {/* Create bar — operators only */}
+      {readOnly ? (
+        <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+          <Eye className="w-4 h-4 text-gray-400" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+            Read-only — live operational view
+          </span>
+        </div>
+      ) : (
+        <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+          <SearchSelectBar
+            flightType={flightType}
+            onFlightType={setFlightType}
+            onCreated={onCreated}
+            onNewStrip={(callsign) => { setFormCallsign(callsign); setFormOpen(true); }}
+          />
+        </div>
+      )}
 
-      <NewStripForm
-        open={formOpen}
-        defaultCallsign={formCallsign}
-        defaultFlightType={flightType}
-        onClose={() => setFormOpen(false)}
-        onCreated={onCreated}
-      />
-      <StripEditModal strip={editStrip} onClose={() => setEditStrip(null)} onSaved={refetch} />
+      {!readOnly && (
+        <>
+          <NewStripForm
+            open={formOpen}
+            defaultCallsign={formCallsign}
+            defaultFlightType={flightType}
+            onClose={() => setFormOpen(false)}
+            onCreated={onCreated}
+          />
+          <StripEditModal strip={editStrip} onClose={() => setEditStrip(null)} onSaved={refetch} />
+        </>
+      )}
+      <StripDetailsModal strip={viewStrip} onClose={() => setViewStrip(null)} />
 
       {/* Phase columns (kanban) — drag a card to a column to the right to advance it */}
       <div className="flex-1 overflow-x-auto overflow-y-hidden p-3">

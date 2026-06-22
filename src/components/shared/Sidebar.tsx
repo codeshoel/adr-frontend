@@ -15,6 +15,7 @@ import {
   Clock,
   Radio,
   History,
+  Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth.store";
@@ -43,6 +44,7 @@ const NAV_ITEMS: Record<UserRole, NavItem[]> = {
   ],
   nama_management: [
     { label: "Dashboard", icon: BarChart2, href: "/nama" },
+    { label: "Tower Board", icon: Eye, href: "/nama/tower" },
     { label: "Reports", icon: ClipboardCheck, href: "/reports" },
     INBOX_ITEM,
   ],
@@ -66,6 +68,7 @@ const NAV_ITEMS: Record<UserRole, NavItem[]> = {
   ],
   system_admin: [
     { label: "Dashboard", icon: BarChart2, href: "/nama" },
+    { label: "Tower Board", icon: Eye, href: "/nama/tower" },
     { label: "Users", icon: Settings, href: "/admin" },
     { label: "Reports", icon: ClipboardCheck, href: "/reports" },
     INBOX_ITEM,
