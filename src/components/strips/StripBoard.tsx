@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Wifi, WifiOff, Eye } from "lucide-react";
+import { Wifi, WifiOff } from "lucide-react";
 import type { FlightStrip, StripFlightType } from "@/types";
 import { stripsApi, openStripStream } from "@/lib/api/strips";
 import { BOARD_COLUMNS, advancesToColumn } from "@/lib/strips/phases";
@@ -172,14 +172,7 @@ export function StripBoard({ readOnly = false }: { readOnly?: boolean }) {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Create bar — operators only */}
-      {readOnly ? (
-        <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
-          <Eye className="w-4 h-4 text-gray-400" />
-          <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-            Read-only — live operational view
-          </span>
-        </div>
-      ) : (
+      {!readOnly && (
         <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
           <SearchSelectBar
             flightType={flightType}

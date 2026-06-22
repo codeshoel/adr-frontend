@@ -28,7 +28,7 @@ interface NavItem {
   href: string;
 }
 
-const INBOX_ITEM: NavItem = { label: "Inbox", icon: Bell, href: "/notifications" };
+const INBOX_ITEM: NavItem = { label: "Notifications", icon: Bell, href: "/notifications" };
 
 const NAV_ITEMS: Record<UserRole, NavItem[]> = {
   atc_operator: [
@@ -90,7 +90,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="w-64 min-h-screen bg-navy-500 flex flex-col">
+    <aside className="w-64 shrink-0 min-h-screen bg-navy-500 flex flex-col">
       {/* Logo */}
       <div className="p-6 border-b border-navy-400">
         <div className="flex items-center gap-3">
