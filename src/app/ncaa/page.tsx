@@ -25,11 +25,62 @@ interface SafetyFlag {
   movement_date: string;
 }
 
+interface AuditLog {
+  id: string;
+  user_id: string | null;
+  user_name: string | null;
+  entity_type: string;
+  entity_id: string | null;
+  action: string;
+  old_values: Record<string, unknown> | null;
+  new_values: Record<string, unknown> | null;
+  ip_address: string | null;
+  timestamp: string;
+}
+
+const AUDIT_ACTIONS = ["create", "update", "delete", "approve", "reject", "flag", "login", "logout", "export", "view"];
+const AUDIT_ENTITIES = ["flight_movement", "flight_strip", "daily_operations_plan", "shift", "user"];
+
+const ACTION_STYLE: Record<string, string> = {
+  create: "bg-emerald-100 text-emerald-700",
+  update: "bg-sky-100 text-sky-700",
+  delete: "bg-red-100 text-red-700",
+  approve: "bg-green-100 text-green-700",
+  reject: "bg-red-100 text-red-700",
+  flag: "bg-amber-100 text-amber-800",
+  login: "bg-gray-100 text-gray-600",
+  logout: "bg-gray-100 text-gray-600",
+  export: "bg-purple-100 text-purple-700",
+  view: "bg-gray-100 text-gray-500",
+};
+
+const prettyEntity = (e: string) => e.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+function summarize(row: AuditLog): string {
+  const v = row.new_values ?? row.old_values;
+  if (!v || typeof v !== "object") return "—";
+  return Object.entries(v)
+    .slice(0, 3)
+    .map(([k, val]) => `${k}: ${val ?? "—"}`)
+    .join(" · ");
+}
+
 export default function NcaaPage() {
   const [tab, setTab] = useState<"safety" | "compliance" | "audit">("safety");
   const [feed, setFeed] = useState<unknown[]>([]);
   const [compliance, setCompliance] = useState<Record<string, unknown> | null>(null);
   const [aerodrome, setAerodrome] = useState<Aerodrome | null>(null);
+
+  // Audit trail
+  const [audit, setAudit] = useState<{ items: AuditLog[]; total: number; page: number; page_size: number }>(
+    { items: [], total: 0, page: 1, page_size: 25 }
+  );
+  const [auditAction, setAuditAction] = useState("");
+  const [auditEntity, setAuditEntity] = useState("");
+  const [auditFrom, setAuditFrom] = useState("");
+  const [auditTo, setAuditTo] = useState("");
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditLoading, setAuditLoading] = useState(false);
 
   useEffect(() => {
     const params = aerodrome ? { aerodrome_id: aerodrome.id } : {};
@@ -39,6 +90,26 @@ export default function NcaaPage() {
       client.get("/ncaa/compliance-report", { params }).then(({ data }) => setCompliance(data)).catch(() => {});
     }
   }, [tab, aerodrome]);
+
+  useEffect(() => {
+    if (tab !== "audit") return;
+    setAuditLoading(true);
+    client
+      .get("/audit/", {
+        params: {
+          action: auditAction || undefined,
+          entity_type: auditEntity || undefined,
+          date_from: auditFrom || undefined,
+          date_to: auditTo || undefined,
+          aerodrome_id: aerodrome?.id || undefined,
+          page: auditPage,
+          page_size: 25,
+        },
+      })
+      .then(({ data }) => setAudit(data))
+      .catch(() => setAudit({ items: [], total: 0, page: 1, page_size: 25 }))
+      .finally(() => setAuditLoading(false));
+  }, [tab, auditAction, auditEntity, auditFrom, auditTo, aerodrome, auditPage]);
 
   return (
     <div className="p-6">
@@ -161,9 +232,95 @@ export default function NcaaPage() {
       )}
 
       {tab === "audit" && (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-          <p className="text-sm text-gray-500">Audit trail access — use the filters to query specific movement records or users.</p>
-          <p className="text-xs text-gray-400 mt-2">Full audit trail available via API: <code className="bg-gray-100 px-1 rounded">/api/v1/audit/</code></p>
+        <div className="space-y-4">
+          {/* Filters */}
+          <div className="flex flex-wrap items-end gap-3 bg-white border border-gray-100 rounded-xl shadow-sm p-3">
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] uppercase tracking-wider text-gray-400">Action</span>
+              <select value={auditAction} onChange={(e) => { setAuditAction(e.target.value); setAuditPage(1); }}
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                <option value="">All actions</option>
+                {AUDIT_ACTIONS.map((a) => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] uppercase tracking-wider text-gray-400">Entity</span>
+              <select value={auditEntity} onChange={(e) => { setAuditEntity(e.target.value); setAuditPage(1); }}
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                <option value="">All entities</option>
+                {AUDIT_ENTITIES.map((e) => <option key={e} value={e}>{prettyEntity(e)}</option>)}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] uppercase tracking-wider text-gray-400">From</span>
+              <input type="date" value={auditFrom} onChange={(e) => { setAuditFrom(e.target.value); setAuditPage(1); }}
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] uppercase tracking-wider text-gray-400">To</span>
+              <input type="date" value={auditTo} onChange={(e) => { setAuditTo(e.target.value); setAuditPage(1); }}
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+            </label>
+            {(auditAction || auditEntity || auditFrom || auditTo) && (
+              <button onClick={() => { setAuditAction(""); setAuditEntity(""); setAuditFrom(""); setAuditTo(""); setAuditPage(1); }}
+                className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">Clear</button>
+            )}
+            <span className="ml-auto text-xs text-gray-400 self-center">{audit.total} record{audit.total === 1 ? "" : "s"}</span>
+          </div>
+
+          {/* Table */}
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[11px] uppercase tracking-wider text-gray-400 border-b border-gray-100 bg-gray-50">
+                  <th className="px-4 py-2.5">Time (UTC)</th>
+                  <th className="px-4 py-2.5">Actor</th>
+                  <th className="px-4 py-2.5">Action</th>
+                  <th className="px-4 py-2.5">Entity</th>
+                  <th className="px-4 py-2.5">Details</th>
+                  <th className="px-4 py-2.5">IP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLoading && (
+                  <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
+                )}
+                {!auditLoading && audit.items.length === 0 && (
+                  <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No audit records for these filters.</td></tr>
+                )}
+                {!auditLoading && audit.items.map((row) => (
+                  <tr key={row.id} className="border-b border-gray-50 hover:bg-gray-50/50">
+                    <td className="px-4 py-2.5 whitespace-nowrap text-gray-600 tabular-nums">
+                      {new Date(row.timestamp).toLocaleString(undefined, { hour12: false })}
+                    </td>
+                    <td className="px-4 py-2.5 text-gray-700">{row.user_name ?? <span className="text-gray-400">system</span>}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${ACTION_STYLE[row.action] ?? "bg-gray-100 text-gray-600"}`}>
+                        {row.action}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span className="text-gray-700">{prettyEntity(row.entity_type)}</span>
+                      {row.entity_id && <span className="ml-1 font-mono text-[11px] text-gray-400">#{row.entity_id.slice(0, 8)}</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-gray-500 max-w-md truncate" title={summarize(row)}>{summarize(row)}</td>
+                    <td className="px-4 py-2.5 font-mono text-[11px] text-gray-400">{row.ip_address ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {audit.total > audit.page_size && (
+            <div className="flex items-center justify-end gap-3 text-sm">
+              <button disabled={auditPage <= 1} onClick={() => setAuditPage((p) => p - 1)}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50">Prev</button>
+              <span className="text-gray-500">Page {audit.page} of {Math.max(1, Math.ceil(audit.total / audit.page_size))}</span>
+              <button disabled={auditPage >= Math.ceil(audit.total / audit.page_size)} onClick={() => setAuditPage((p) => p + 1)}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50">Next</button>
+            </div>
+          )}
         </div>
       )}
     </div>
